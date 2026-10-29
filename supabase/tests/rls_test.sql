@@ -20,7 +20,8 @@ insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'alice@example.com'),
   ('22222222-2222-2222-2222-222222222222', 'bob@example.com'),
   ('33333333-3333-3333-3333-333333333333', 'carol@example.com'),
-  ('44444444-4444-4444-4444-444444444444', 'dave@example.com');
+  ('44444444-4444-4444-4444-444444444444', 'dave@example.com'),
+  ('55555555-5555-5555-5555-555555555555', 'erin@example.com');
 
 -- Household A: alice creates, bob joins.
 set local role authenticated;
@@ -335,6 +336,57 @@ select test.assert_raises(
   'an event cannot end before it starts');
 
 -- ---------------------------------------------------------------------------
+-- Deleted rows are erased after 30 days.
+--
+-- Soft deletion exists so a delete syncs to the other device; it is not meant to
+-- keep the data. One expired row per table, so a table missing from the purge
+-- fails here rather than keeping data quietly.
+-- ---------------------------------------------------------------------------
+
+reset role;
+
+insert into expense (household_id, amount_cents, note, spent_on, deleted_at)
+values ((select household_id from a_setup), 100, 'A: expired', current_date, now() - interval '31 days'),
+       ((select household_id from a_setup), 100, 'A: recently deleted', current_date, now() - interval '1 day');
+
+insert into income_entry (household_id, member_id, amount_cents, label, effective_from, deleted_at)
+select (select household_id from a_setup), m.id, 100, 'A: expired', current_date, now() - interval '31 days'
+from member m where m.household_id = (select household_id from a_setup) and m.display_name = 'Alice';
+
+insert into event (household_id, title, all_day, starts_on, deleted_at)
+values ((select household_id from a_setup), 'A: expired', true, current_date, now() - interval '31 days');
+
+insert into shopping_item (household_id, name, deleted_at)
+values ((select household_id from a_setup), 'A: expired', now() - interval '31 days');
+
+insert into todo (household_id, title, deleted_at)
+values ((select household_id from a_setup), 'A: expired', now() - interval '31 days');
+
+select purge_deleted_rows();
+
+select test.assert(
+  not exists (select 1 from expense where note = 'A: expired')
+  and not exists (select 1 from income_entry where label = 'A: expired')
+  and not exists (select 1 from event where title = 'A: expired')
+  and not exists (select 1 from shopping_item where name = 'A: expired')
+  and not exists (select 1 from todo where title = 'A: expired'),
+  'rows deleted more than 30 days ago are erased from all five tables');
+
+select test.assert(
+  exists (select 1 from expense where note = 'A: recently deleted'),
+  'a row deleted yesterday is kept, so the deletion can still sync');
+
+select test.assert(
+  exists (select 1 from expense where note = 'A: weekly shop'),
+  'live rows are untouched by the purge');
+
+delete from expense where note = 'A: recently deleted';
+
+select test.become('11111111-1111-1111-1111-111111111111');
+select test.assert_raises('select purge_deleted_rows()',
+  'a signed-in user cannot run the purge');
+
+-- ---------------------------------------------------------------------------
 -- Leaving keeps shared history and removes personal data.
 -- ---------------------------------------------------------------------------
 
@@ -399,5 +451,49 @@ reset role;
 select test.assert(
   not exists (select 1 from household where id = (select household_id from a_setup)),
   'the household is removed once nobody is left');
+
+-- ---------------------------------------------------------------------------
+-- Deleting an account counts as leaving.
+--
+-- The foreign key clears member.user_id, but left_at stayed null: a ghost that
+-- still counted as a member, kept its income and kept a solo household alive.
+-- ---------------------------------------------------------------------------
+
+select test.become('44444444-4444-4444-4444-444444444444');
+create temporary table d_setup as select * from create_household('Dave');
+
+select test.become('55555555-5555-5555-5555-555555555555');
+select join_household((select pairing_code from d_setup), 'Erin');
+
+reset role;
+
+insert into income_entry (household_id, member_id, amount_cents, label, effective_from)
+select (select household_id from d_setup), m.id, 100000, 'Erin salary', current_date
+from member m where m.household_id = (select household_id from d_setup) and m.display_name = 'Erin';
+
+insert into expense (household_id, amount_cents, note, spent_on)
+values ((select household_id from d_setup), 500, 'D: shared', current_date);
+
+delete from auth.users where id = '55555555-5555-5555-5555-555555555555';
+
+select test.assert(
+  exists (select 1 from member
+           where household_id = (select household_id from d_setup)
+             and display_name = 'Erin' and user_id is null and left_at is not null),
+  'a deleted account''s member row is marked as left');
+
+select test.assert(
+  not exists (select 1 from income_entry where label = 'Erin salary'),
+  'a deleted account''s income is removed');
+
+select test.assert(
+  exists (select 1 from expense where note = 'D: shared'),
+  'shared expenses survive a deleted account');
+
+delete from auth.users where id = '44444444-4444-4444-4444-444444444444';
+
+select test.assert(
+  not exists (select 1 from household where id = (select household_id from d_setup)),
+  'the household is removed once the last account is deleted');
 
 rollback;
