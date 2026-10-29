@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    // `vite.config.ts` runs in Node, so it needs the Node globals (`process`).
+    // "node" is listed here and @types/node is a direct devDependency because
+    // this directory sits inside another repo, and TypeScript walks *up* the
+    // tree for types — so local builds passed on a @types/node belonging to the
+    // parent, while CI (where this repo stands alone) could not find `process`.
+    // Do not add "typeRoots" to pin this down: it is resolved before node
+    // resolution and breaks the two package-subpath entries below.
+    "types": ["node", "vite/client", "vite-plugin-pwa/client"]
+  },
+  "include": ["src", "vite.config.ts"]
+}

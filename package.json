@@ -1,0 +1,37 @@
+{
+  "name": "pollito",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "test:rls": "supabase/tests/run.sh",
+    "dev:https": "HTTPS=true vite",
+    "deploy": "npm run build && npm run deploy:upload",
+    "deploy:upload": "wrangler pages deploy dist --project-name pollito --branch production",
+    "cf:login": "wrangler login"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.58.0",
+    "@tanstack/query-sync-storage-persister": "^5.101.4",
+    "@tanstack/react-query": "^5.90.0",
+    "@tanstack/react-query-persist-client": "^5.101.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.0",
+    "vite-plugin-pwa": "^1.1.0",
+    "wrangler": "^4.125.0"
+  }
+}

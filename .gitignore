@@ -1,0 +1,19 @@
+# Local secrets. The publishable key is public by design, but the file is
+# environment-specific and belongs on the machine, not in the repo.
+.env
+.env.local
+.env.*.local
+
+# Dependencies and build output — reproducible from package-lock.json.
+node_modules
+dist
+dev-dist
+
+# Editor and OS noise
+.DS_Store
+*.log
+.vscode
+.idea
+
+# Wrangler's local deploy cache
+.wrangler

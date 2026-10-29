@@ -1,0 +1,101 @@
+# Push to main -> build -> deploy to Cloudflare Pages -> verify the live site.
+#
+# Deliberate choices:
+#
+# - wrangler is invoked through `npm run deploy:upload`, not spelled out here.
+#   The project name and production branch are fiddly (the production branch is
+#   `production`, not `main`). Duplicating them into this file would create two
+#   copies to keep in sync; the version in package.json is the only one.
+#
+# - The public domain comes from the repository variable PAGES_DOMAIN (e.g.
+#   `myapp.pages.dev`), so the repo itself names no deployment. Until it is
+#   set, the job is skipped rather than failed: a fresh copy of this repo gets
+#   a quiet grey run instead of a red one on its first push.
+#
+# - No third-party deploy action. wrangler is already a devDependency, so
+#   `npx wrangler` uses the pinned version and adds no new supply-chain surface.
+#
+# - The last step verifies the apex domain actually serves the bundle we just
+#   built. `wrangler pages deploy` prints "Success" for a *preview* deployment
+#   exactly as it does for production, so a green deploy step proves nothing on
+#   its own. This is the check that would have caught that.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# A newer push makes an in-flight deploy pointless.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ vars.PAGES_DOMAIN != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # `npm run build` is `tsc --noEmit && vite build`, so a type error fails
+      # the deploy instead of shipping. This is the whole CI check we get.
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          test -n "$VITE_SUPABASE_URL"      || { echo "::error::VITE_SUPABASE_URL secret is not set"; exit 1; }
+          test -n "$VITE_SUPABASE_ANON_KEY" || { echo "::error::VITE_SUPABASE_ANON_KEY secret is not set"; exit 1; }
+          npm run build
+
+      # Record the built entry bundle so the verify step knows what to look for.
+      - name: Identify build
+        id: build
+        run: |
+          bundle="$(cd dist && ls assets/index-*.js | head -1)"
+          test -n "$bundle" || { echo "::error::no entry bundle in dist/assets"; exit 1; }
+          echo "bundle=$bundle" >> "$GITHUB_OUTPUT"
+          echo "built $bundle"
+
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy:upload
+
+      # Poll the production hostname, not the deployment URL wrangler printed.
+      - name: Verify live site serves this build
+        env:
+          BUNDLE: ${{ steps.build.outputs.bundle }}
+          PAGES_DOMAIN: ${{ vars.PAGES_DOMAIN }}
+        run: |
+          url="https://$PAGES_DOMAIN/"
+          for attempt in $(seq 1 12); do
+            body="$(curl -fsSL --max-time 15 "$url" || true)"
+            case "$body" in
+              *"$BUNDLE"*)
+                echo "live site serves $BUNDLE (attempt $attempt)"
+                curl -fsS --max-time 15 -o /dev/null "${url}sw.js" \
+                  && echo "service worker reachable"
+                exit 0
+                ;;
+            esac
+            echo "attempt $attempt: apex not serving $BUNDLE yet, waiting"
+            sleep 5
+          done
+          echo "::error::deploy reported success but $url never served $BUNDLE — likely landed as a preview deployment rather than production"
+          exit 1

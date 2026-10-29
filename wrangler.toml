@@ -1,0 +1,12 @@
+# Cloudflare Pages configuration.
+#
+# `pages_build_output_dir` points at Vite's output. The Supabase URL and
+# publishable key are inlined into the bundle at build time from .env, so there
+# are no environment variables to configure on Cloudflare - the deploy is a plain
+# static upload.
+#
+# Nothing here can incur cost: Pages' free tier has unlimited requests and
+# bandwidth, and no overage billing. It stops rather than charges.
+name = "pollito"
+compatibility_date = "2026-08-21"
+pages_build_output_dir = "dist"
