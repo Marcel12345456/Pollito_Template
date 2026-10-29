@@ -200,6 +200,65 @@ select test.assert_eq((select count(*)::int from attempted), 0,
   'alice cannot change the other household''s settings');
 
 -- ---------------------------------------------------------------------------
+-- Membership cannot be rewritten from the client.
+--
+-- An UPDATE policy without `with check` reuses `using` for the new row, and
+-- "the row is still mine" says nothing about which household it is in. The
+-- max-two trigger fires on insert only, so an update would bypass that too.
+-- The statements are unfiltered on purpose: that is a plain PATCH on
+-- /rest/v1/member, and a WHERE clause would trip the SELECT policy and hide the
+-- hole.
+-- ---------------------------------------------------------------------------
+
+select test.become('33333333-3333-3333-3333-333333333333');
+
+select test.assert_raises(
+  format('update member set household_id = %L', (select household_id from a_setup)),
+  'carol cannot move herself into another household');
+
+select test.assert_eq((select count(*)::int from expense where note = 'A: weekly shop'), 0,
+  'carol still cannot read the other household''s expenses');
+
+select test.become('11111111-1111-1111-1111-111111111111');
+
+select test.assert_raises('update household set pairing_open = true',
+  'alice cannot reopen pairing on her full household');
+
+select test.assert_raises('update household set pairing_code = ''AAAAAA''',
+  'alice cannot choose her own pairing code');
+
+-- The columns that stay writable still work, so the lock-down is not a lock-out.
+with changed as (
+  update member set display_name = 'Alice B.', colour = '#1e40af' returning 1
+)
+select test.assert_eq((select count(*)::int from changed), 1,
+  'alice can still rename and recolour herself');
+
+with changed as (
+  update member set display_name = 'Robert' where display_name = 'Bob' returning 1
+)
+select test.assert_eq((select count(*)::int from changed), 0,
+  'alice cannot rename bob');
+
+update member set display_name = 'Alice';
+
+-- seed_default_categories is a SECURITY DEFINER helper for create_household,
+-- not an endpoint. Callable, it writes into any household by id - and the
+-- foreign-key error on an unknown id tells you which ids exist.
+select test.assert_raises(
+  format('select seed_default_categories(%L)', (select household_id from b_setup)),
+  'alice cannot seed categories into another household');
+
+-- Captured now, because anon cannot read the fixture tables.
+select household_id as a_household from a_setup \gset
+
+select test.become_anon();
+
+select test.assert_raises(
+  format('select seed_default_categories(%L)', :'a_household'),
+  'anon cannot seed categories into a household');
+
+-- ---------------------------------------------------------------------------
 -- Anonymous sees nothing. This is the case that matters if the anon key leaks,
 -- which it will, because it is in the bundle.
 -- ---------------------------------------------------------------------------
@@ -279,6 +338,11 @@ select test.assert_raises(
 -- Leaving keeps shared history and removes personal data.
 -- ---------------------------------------------------------------------------
 
+-- Bob's salary, so there is personal data of his to remove.
+insert into income_entry (household_id, member_id, amount_cents, label, effective_from)
+select (select household_id from a_setup), m.id, 250000, 'Bob salary', current_date
+from member m where m.household_id = (select household_id from a_setup) and m.display_name = 'Bob';
+
 select test.become('22222222-2222-2222-2222-222222222222');
 select leave_household();
 
@@ -322,6 +386,12 @@ select test.assert_eq(
 select test.become('11111111-1111-1111-1111-111111111111');
 select test.assert_eq((select count(*)::int from expense), 1,
   'alice''s view is unchanged after her partner left');
+
+-- Marking it deleted is not enough: the income policy has no deleted_at filter,
+-- so a soft-deleted salary stays readable to the ex-partner indefinitely.
+select test.assert(
+  not exists (select 1 from income_entry where label = 'Bob salary'),
+  'alice cannot read bob''s income after he left');
 
 -- And when the last member leaves, the household goes.
 select leave_household();

@@ -1,17 +1,18 @@
 -- Minimal replica of the Supabase contract the policies depend on.
 --
 -- Testing RLS against plain Postgres rather than a full local Supabase stack is
--- deliberate: the policies only need three things from Supabase, and stubbing
+-- deliberate: the policies only need four things from Supabase, and stubbing
 -- exactly those makes the test deterministic, fast, and honest about what it
 -- covers. It does NOT test Supabase's own auth service - only that the policies
 -- do the right thing given an authenticated user id.
 --
--- The three things:
+-- The four things:
 --   1. an `auth.users` table for member.user_id to reference
 --   2. `auth.uid()`, which Supabase defines as a JWT claim lookup
 --   3. the `anon` and `authenticated` roles, which are NOT table owners
+--   4. the privileges Supabase grants those roles (see the end of this file)
 --
--- That last point is the one that matters most: a table's owner bypasses RLS in
+-- Point 3 is the one that matters most: a table's owner bypasses RLS in
 -- Postgres unless FORCE is set. Testing as the owner would make every policy
 -- appear to work while proving nothing. Supabase serves requests as
 -- `authenticated`, so the tests must too.
@@ -51,3 +52,15 @@ end
 $$;
 
 grant usage on schema public, auth to anon, authenticated;
+
+-- 4. Supabase's grants, given the way Supabase gives them: as default privileges,
+--    so every table and function a migration creates is granted to both roles at
+--    creation time. Granting afterwards with `grant ... on all tables` would
+--    silently undo any column-level revoke a migration makes, and the tests would
+--    pass against a database that does not exist anywhere.
+alter default privileges in schema public
+  grant all on tables to anon, authenticated;
+alter default privileges in schema public
+  grant all on sequences to anon, authenticated;
+alter default privileges in schema public
+  grant execute on functions to anon, authenticated;

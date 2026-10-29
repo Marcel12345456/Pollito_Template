@@ -1,13 +1,8 @@
--- Privileges, mirroring what Supabase grants.
+-- Test-only privilege changes, applied after the migrations.
 --
--- Applied after the migrations so newly created tables are covered. Note that
--- grants and RLS are different mechanisms: a grant says "you may attempt this",
--- a policy says "on these rows". Both are needed, and only the policy is
--- row-aware.
-
-grant select, insert, update, delete on all tables in schema public to authenticated;
-grant select on all tables in schema public to anon;
-grant execute on all functions in schema public to authenticated;
+-- The grants themselves come from the default privileges in 00_auth_shim.sql,
+-- mirroring Supabase. Anything a migration revokes must stay revoked, so nothing
+-- here grants.
 
 -- The bootstrap functions are SECURITY DEFINER and do their own authorisation
 -- checks, so anon may call none of them.
