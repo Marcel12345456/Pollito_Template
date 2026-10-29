@@ -21,6 +21,9 @@ step() {
 # Type check + production bundle. `build` is `tsc --noEmit && vite build`.
 step build npm run build
 
+# Unit tests (vitest).
+step test npm test
+
 # RLS suite against a throwaway Postgres. Needs the Docker daemon running.
 docker info > /dev/null 2>&1 || { echo "done.sh: Docker is not running - the RLS suite needs it" >&2; exit 1; }
 step test:rls npm run test:rls

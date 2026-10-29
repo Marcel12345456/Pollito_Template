@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Section } from '../components/Section';
 import { InstallSection } from '../components/InstallSection';
 import {
@@ -7,6 +8,8 @@ import {
 } from '../lib/queries';
 import { Link } from 'react-router-dom';
 import { formatCents, parseAmountToCents, todayIso } from '../lib/money';
+import { requireSupabase } from '../lib/supabase';
+import { clearLocalData } from '../lib/localData';
 
 /**
  * Categories are free text.
@@ -39,8 +42,74 @@ export function Settings() {
       <IncomeSection />
       <CategorySection />
       <HouseholdSection />
+      <AccountSection />
       <LegalSection />
     </>
+  );
+}
+
+/**
+ * Signing out and leaving.
+ *
+ * Both clear this device's copy of the data. Sign-out is local to this device
+ * (`scope: 'local'`): it works offline, and it is what you want on a shared
+ * device without signing your phone out too.
+ */
+function AccountSection() {
+  const client = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const signOut = async () => {
+    // Writes made offline sit in a queue until the connection is back. Signing
+    // out drops that queue, so say so rather than lose them silently.
+    const unsent = client.getMutationCache().getAll().some((m) => m.state.isPaused);
+    if (unsent && !window.confirm('Some changes have not been sent yet and will be lost. Sign out anyway?')) {
+      return;
+    }
+    setBusy(true);
+    // The SIGNED_OUT listener in App clears the local data.
+    const { error: failed } = await requireSupabase().auth.signOut({ scope: 'local' });
+    if (failed) {
+      setError(failed.message);
+      setBusy(false);
+    }
+  };
+
+  const leave = async () => {
+    if (!window.confirm(
+      'Leave this household? Your income entries are deleted. Shared expenses, '
+      + 'events and lists stay with the other person. This cannot be undone.',
+    )) {
+      return;
+    }
+    setBusy(true);
+    const { error: failed } = await requireSupabase().rpc('leave_household');
+    if (failed) {
+      setError(failed.message);
+      setBusy(false);
+      return;
+    }
+    clearLocalData(client);
+    // A full reload rather than a refetch: every mounted query belongs to the
+    // household just left, and starting over is simpler than invalidating each.
+    window.location.assign('/');
+  };
+
+  return (
+    <Section id="account" title="Account" summary="Sign out or leave the household">
+      <p>
+        Signing out removes the household's data from this device. Leaving deletes
+        your income for good; shared history stays with the other person.
+      </p>
+      {error && <div className="notice notice--warn">{error}</div>}
+      <button className="button" onClick={() => void signOut()} disabled={busy}>
+        Sign out
+      </button>
+      <button className="button--quiet" onClick={() => void leave()} disabled={busy}>
+        Leave household
+      </button>
+    </Section>
   );
 }
 

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useQueryClient, onlineManager } from '@tanstack/react-query';
 import type { Session } from '@supabase/supabase-js';
 import { isConfigured, supabase } from './lib/supabase';
+import { clearLocalData } from './lib/localData';
 import { useHousehold, useRealtimeSync } from './lib/queries';
 import { AppShell } from './components/AppShell';
 import { Overview } from './pages/Overview';
@@ -32,6 +33,7 @@ export default function App() {
 function Authenticated() {
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
+  const client = useQueryClient();
 
   useEffect(() => {
     if (!supabase) return;
@@ -41,9 +43,14 @@ function Authenticated() {
     });
     // The magic link returns with the session in the URL fragment, so the
     // listener is what picks it up - getSession alone would miss it.
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    // Sign-out clears this device's copy of the data, whatever caused it: the
+    // button, another tab, or an expired session.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      if (event === 'SIGNED_OUT') clearLocalData(client);
+      setSession(next);
+    });
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [client]);
 
   if (!checked) return null;
   if (!session) return <SignIn />;

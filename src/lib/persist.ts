@@ -15,8 +15,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import type { PersistedClient } from '@tanstack/react-query-persist-client';
-
-const STORAGE_KEY = 'pollito.query-cache';
+import { CACHE_STORAGE_KEY } from './localData';
 
 /**
  * Bumped when the cached shape changes.
@@ -29,7 +28,7 @@ const CACHE_VERSION = 'v1';
 
 export const persister = createSyncStoragePersister({
   storage: window.localStorage,
-  key: STORAGE_KEY,
+  key: CACHE_STORAGE_KEY,
   // If localStorage is full or unavailable (private browsing on iOS), degrade to
   // an online-only app rather than failing to start.
   throttleTime: 1000,

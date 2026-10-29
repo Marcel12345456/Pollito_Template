@@ -12,7 +12,8 @@
     "dev:https": "HTTPS=true vite",
     "deploy": "npm run build && npm run deploy:upload",
     "deploy:upload": "wrangler pages deploy dist --project-name pollito --branch production",
-    "cf:login": "wrangler login"
+    "cf:login": "wrangler login",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
@@ -32,6 +33,7 @@
     "typescript": "~5.9.3",
     "vite": "^7.2.0",
     "vite-plugin-pwa": "^1.1.0",
+    "vitest": "^5.0.5",
     "wrangler": "^4.125.0"
   }
 }
