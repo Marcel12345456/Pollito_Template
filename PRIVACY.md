@@ -1,6 +1,6 @@
 # Privacy
 
-*Last updated: 21 August 2026*
+*Last updated: 29 October 2026*
 
 This describes what Pollito does with your data. It is written to be accurate
 rather than exhaustive: everything below reflects what the code in this
@@ -93,7 +93,7 @@ to the signed-in user's household.
 This matters more than usual here, because the key the app carries in your browser
 is public by design — anyone can read it out of the page. It grants nothing on its
 own. The database policies are the actual boundary, and they are covered by an
-automated test suite of 51 assertions, including that an unauthenticated request
+automated test suite of 68 assertions, including that an unauthenticated request
 returns nothing at all.
 
 ## How long it is kept
@@ -101,16 +101,18 @@ returns nothing at all.
 Until you delete it.
 
 - Individual items are removed when you delete them in the app. They are marked
-  deleted rather than erased immediately, so that a deletion syncs reliably to
-  the other device.
+  deleted first, so that a deletion syncs reliably to the other device, and
+  erased for good 30 days later.
 - **If one person leaves the household**, their income entries are deleted, and
   shared expenses, events and list items remain — attributed to a former member.
   This is deliberate: erasing them would retroactively change the other person's
   own financial history.
 - **When the second person leaves, the household and everything in it is
   deleted.**
-- Deleting your account through Supabase removes your login. The household data
-  follows the rules above.
+- Deleting your account through Supabase removes your login and counts as
+  leaving the household, so the rules above apply.
+- Signing out, or leaving, removes the copy of the household's data kept on
+  that device.
 
 ## Your rights
 

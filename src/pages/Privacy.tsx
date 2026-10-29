@@ -12,7 +12,7 @@
 export function Privacy() {
   return (
     <div className="stack" style={{ paddingBottom: 24 }}>
-      <p style={{ fontSize: 13 }}>Last updated: 21 August 2026</p>
+      <p style={{ fontSize: 13 }}>Last updated: 29 October 2026</p>
 
       <h3>What is stored</h3>
       <p>
@@ -40,7 +40,11 @@ export function Privacy() {
       <p>Nobody else. It is never sold, shared, or used to train anything.</p>
 
       <h3>How long it is kept</h3>
-      <p>Until you delete it. If one of you leaves the household:</p>
+      <p>
+        Until you delete it. Deleted items are erased for good after 30 days.
+        Signing out removes the copy kept on your device. If one of you leaves the
+        household, or deletes their account:
+      </p>
       <ul style={{ color: 'var(--muted)', lineHeight: 1.6, paddingLeft: 20 }}>
         <li>their income entries are deleted;</li>
         <li>

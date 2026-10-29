@@ -148,9 +148,14 @@ free-tier quota.
   - There's no 2FA, and password reset happens in the Supabase dashboard.
   - Pairing codes use `random()`, which is not a secure random generator, and
     joining a household isn't rate-limited.
+  - Once a partner leaves, the household can't pair with someone new. The
+    remaining person has to leave and create a fresh household.
 - **Inactive projects get paused:** Supabase pauses free-tier projects that
   go unused for a while (check their current terms for how long). The app then
   stops working until you restore the project in the dashboard. Your data is
   kept.
+- **Deleted items are erased after 30 days** by a nightly `pg_cron` job, which
+  `setup.sql` enables. You can see it under Supabase → Integrations → Cron. While
+  the project is paused it doesn't run, so erasure can be late, never early.
 - **Backups:** the Supabase free tier doesn't give you downloadable backups.
   Export your data now and then if it matters to you.
