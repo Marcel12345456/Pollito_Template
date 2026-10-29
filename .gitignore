@@ -17,3 +17,8 @@ dev-dist
 
 # Wrangler's local deploy cache
 .wrangler
+
+# Claude Code done-check state
+.claude/.dirty-*
+.claude/.strikes-*
+.claude/done.off
